@@ -20,8 +20,9 @@ public class CategoriesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
-        var categories = await _context.Categories.ToListAsync();
-        return Ok(categories); 
+        return await _context.Categories
+            .Select(c => new CategoryDto{Id = c.Id, Name = c.Name})
+            .ToListAsync<CategoryDto>();
     }
 
     [HttpGet("{id}")]
@@ -33,22 +34,26 @@ public class CategoriesController : ControllerBase
         {
             return NotFound();
         }
-
-        return Ok(category);
+        var categoryDto = new CategoryDto{Id = category.Id, Name = category.Name};
+        return Ok(categoryDto);
     }
-
+    
     [HttpPost]
-    public async Task<ActionResult<Category>> PostCategory(CategoryDto requestDto)
+    public async Task<ActionResult<CategoryDto>> PostCategory(CategoryForCreationDto requestDto) // Đổi tên DTO cho rõ nghĩa
     {
-        var category = new Category
+        if (await _context.Categories.AnyAsync(c => c.Name.ToLower() == requestDto.Name.ToLower()))
         {
-            Name = requestDto.Name
-        };
-
+            // Nếu có, trả về lỗi 400 Bad Request
+            return BadRequest("Tên danh mục này đã tồn tại.");
+        }
+        var category = new Category { Name = requestDto.Name };
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, category);
+        var categoryDto = new CategoryDto { Id = category.Id, Name = category.Name };
+
+        // CreatedAtAction nên trả về DTO
+        return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, categoryDto);
     }
 
     [HttpDelete("{id}")]

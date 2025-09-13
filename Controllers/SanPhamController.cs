@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MyControllerApi.Data;
@@ -26,7 +27,7 @@ public class SanPhamController : ControllerBase
                 Gia = sp.Gia,
                 TrangThai = sp.TrangThai,
                 CategoryId = sp.CategoryId,
-                CategoryName = sp.Category.Name
+                CategoryName = sp.Category!.Name
             })
             .ToListAsync();
         return Ok(sanPhams);;
@@ -51,34 +52,53 @@ public class SanPhamController : ControllerBase
             Gia = sanPham.Gia,
             TrangThai = sanPham.TrangThai,
             CategoryId = sanPham.CategoryId,
-            CategoryName = sanPham.Category.Name
+            CategoryName = sanPham.Category!.Name
         };
 
         return Ok(sanPhamDto);
     }   
     [HttpPost]
-    public async Task<ActionResult<SanPham>> PostSanPham(CreateSanPham requestDto)
+    public async Task<ActionResult<SanPhamDto>> PostSanPham(CreateSanPhamDto requestDto)
     {
+        if (await _context.SanPhams.AnyAsync(c => c.Ten.ToLower() == requestDto.Ten.ToLower()))
+        {
+            // Nếu có, trả về lỗi 400 Bad Request
+            return BadRequest("Tên danh mục này đã tồn tại.");
+        }
+        // 1. Lấy đối tượng Category từ CSDL (chỉ đi 1 lần)
         var category = await _context.Categories.FindAsync(requestDto.CategoryId);
         if (category == null)
         {
-            return BadRequest("Category khong hop le");
+            return BadRequest("Category không hợp lệ.");
         }
 
+        // 2. Tạo Model, gán cả CategoryId và đối tượng Category đã lấy được
         var newSanPham = new SanPham
         {
             Ten = requestDto.Ten,
             Gia = requestDto.Gia,
             TrangThai = requestDto.TrangThai,
             CategoryId = requestDto.CategoryId,
-
+            Category = category // Gán đối tượng đã có sẵn
         };
-        
+    
         _context.SanPhams.Add(newSanPham);
         await _context.SaveChangesAsync();
-        return Ok(newSanPham);
-    }
+    
+        // 3. Bây giờ newSanPham.Category đã có sẵn, không cần LoadAsync() nữa
+        var sanPhamDto = new SanPhamDto
+        {
+            Id = newSanPham.Id,
+            Ten = newSanPham.Ten,
+            Gia = newSanPham.Gia,
+            TrangThai = newSanPham.TrangThai,
+            CategoryId = newSanPham.CategoryId,
+            CategoryName = newSanPham.Category.Name
+        };
 
+        // 4. Sửa lại tên action cho đúng
+        return CreatedAtAction(nameof(LaySanPham), new { id = sanPhamDto.Id }, sanPhamDto);
+    }
     [HttpPut("{id}")]
     public async Task<IActionResult> PutSanPham(int id, UpdateSanPhamDto dto)
     {
@@ -101,6 +121,7 @@ public class SanPhamController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize]
     public async Task<ActionResult> DeleteSanPham(int id)
     {
         var sanPham = await _context.SanPhams.FindAsync(id);

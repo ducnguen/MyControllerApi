@@ -1,37 +1,97 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models; // << DÒNG QUAN TRỌNG ĐANG BỊ THIẾU
 using MyControllerApi.Data;
+using MyControllerApi.Models;
+using MyControllerApi.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// --- Phần 1: Đăng ký các dịch vụ ---
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
 
-// builder.Services.AddControllers(); // << Dòng này bạn đã có
-// builder.Services.AddControllers().AddJsonOptions(options =>
-// {
-//     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-// });
-// Thay thế AddOpenApi() bằng 2 dòng tiêu chuẩn này:
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
+// Cấu hình Swagger
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter a valid token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiSecurityReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[]{}
+        }
+    });
+});
+
+// Cấu hình DbContext
 builder.Services.AddDbContext<DataContext>(options =>
 {
-    // Giả sử bạn dùng PostgreSQL
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
-    // Nếu bạn dùng SQL Server, hãy dùng options.UseSqlServer(...)
 });
+
+// Cấu hình Identity
+builder.Services.AddIdentity<AppUser, IdentityRole>()
+    .AddEntityFrameworkStores<DataContext>();
+
+// Cấu hình Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+        };
+    });
+
+// Đăng ký TokenService
+builder.Services.AddScoped<TokenService>();
+
+
+// --- Phần 2: Xây dựng ứng dụng ---
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// --- Phần 3: Cấu hình pipeline ---
 if (app.Environment.IsDevelopment())
 {
-    // Thay thế MapOpenApi() bằng 2 dòng tiêu chuẩn này:
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseHttpsRedirection();
+
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers(); // << Dòng này bạn đã có
+app.MapControllers();
 
+// --- Phần 4: Chạy ứng dụng ---
 app.Run();
