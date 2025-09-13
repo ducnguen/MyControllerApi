@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models; // << DÒNG QUAN TRỌNG ĐANG BỊ THIẾU
+using Microsoft.OpenApi.Models;
 using MyControllerApi.Data;
 using MyControllerApi.Models;
 using MyControllerApi.Services;
@@ -35,7 +35,7 @@ builder.Services.AddSwaggerGen(options =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiSecurityReference
+                Reference = new OpenApiReference   
                 {
                     Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
@@ -56,6 +56,9 @@ builder.Services.AddDbContext<DataContext>(options =>
 builder.Services.AddIdentity<AppUser, IdentityRole>()
     .AddEntityFrameworkStores<DataContext>();
 
+// Logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 // Cấu hình Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -70,7 +73,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
         };
+        options.Events = new JwtBearerEvents
+        {
+            
+            OnAuthenticationFailed = ctx =>
+            {
+                Console.WriteLine($"Auth failed: {ctx.Exception.Message}");
+                return Task.CompletedTask;
+            },
+            OnChallenge = ctx =>
+            {
+                Console.WriteLine("Auth challenge triggered!");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = ctx =>
+            {
+                Console.WriteLine("Token validated. Claims:");
+                foreach (var claim in ctx.Principal.Claims)
+                    Console.WriteLine($"  {claim.Type} = {claim.Value}");
+                return Task.CompletedTask;
+            }
+        };
     });
+    
 
 // Đăng ký TokenService
 builder.Services.AddScoped<TokenService>();
@@ -90,7 +115,6 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 // --- Phần 4: Chạy ứng dụng ---

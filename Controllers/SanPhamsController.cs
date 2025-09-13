@@ -8,15 +8,15 @@ using MyControllerApi.Models;
 namespace MyControllerApi.Controllers;
 [ApiController]
 [Route("api/[controller]")]
-public class SanPhamController : ControllerBase
+public class SanPhamsController : ControllerBase
 {
     private readonly DataContext _context;
-    public SanPhamController(DataContext context)
+    public SanPhamsController(DataContext context)
     {
         _context = context;
     }
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<SanPhamDto>>> GetSanPham()
+    public async Task<ActionResult<IEnumerable<SanPhamDto>>> GetSanPhams()
     {
         var sanPhams = await _context.SanPhams
             .Include(sp => sp.Category)
@@ -30,10 +30,10 @@ public class SanPhamController : ControllerBase
                 CategoryName = sp.Category!.Name
             })
             .ToListAsync();
-        return Ok(sanPhams);;
+        return Ok(sanPhams);
     }
     [HttpGet("{id}")]
-    public async Task<ActionResult<SanPhamDto>> LaySanPham(int id)
+    public async Task<ActionResult<SanPhamDto>> GetSanPham(int id)
     {
         var sanPham = await _context.SanPhams
             .Include(sp => sp.Category)
@@ -97,7 +97,7 @@ public class SanPhamController : ControllerBase
         };
 
         // 4. Sửa lại tên action cho đúng
-        return CreatedAtAction(nameof(LaySanPham), new { id = sanPhamDto.Id }, sanPhamDto);
+        return CreatedAtAction(nameof(GetSanPham), new { id = sanPhamDto.Id }, sanPhamDto);
     }
     [HttpPut("{id}")]
     public async Task<IActionResult> PutSanPham(int id, UpdateSanPhamDto dto)
@@ -119,7 +119,8 @@ public class SanPhamController : ControllerBase
 
         return NoContent();
     }
-
+    
+    
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<ActionResult> DeleteSanPham(int id)

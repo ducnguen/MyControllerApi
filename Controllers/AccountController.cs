@@ -53,7 +53,7 @@ public class AccountController : ControllerBase
         {
             return new UserDto
             {
-                Username = user.UserName,
+                Username = user.UserName ?? string.Empty,
                 Token = _tokenService.CreateToken(user)
             };
         }

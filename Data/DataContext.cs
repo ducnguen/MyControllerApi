@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using MyControllerApi.Models;
 using Microsoft.EntityFrameworkCore;
-using MyControllerApi.Models;
 
 namespace MyControllerApi.Data;
 

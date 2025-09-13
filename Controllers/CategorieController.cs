@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MyControllerApi.Data;
@@ -57,6 +58,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize]
     public async Task<ActionResult<Category>> DeleteCategory(int id)
     {
         var category = await _context.Categories.FindAsync(id);
