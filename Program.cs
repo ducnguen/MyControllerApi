@@ -60,51 +60,55 @@ builder.Services.AddIdentity<AppUser, IdentityRole>()
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 // Cấu hình Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+
+var signingKeyBase64Url = builder.Configuration["Jwt:SigningKey"] 
+                          ?? throw new InvalidOperationException("JWT SigningKey missing");
+byte[] keyBytes;
+{
+    string s = signingKeyBase64Url.Trim().Replace('-', '+').Replace('_', '/');
+    switch (s.Length % 4) { case 2: s += "=="; break; case 3: s += "="; break; }
+    keyBytes = Convert.FromBase64String(s);
+}
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+            ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
-        };
-        options.Events = new JwtBearerEvents
-        {
-            
-            OnAuthenticationFailed = ctx =>
-            {
-                Console.WriteLine($"Auth failed: {ctx.Exception.Message}");
-                return Task.CompletedTask;
-            },
-            OnChallenge = ctx =>
-            {
-                Console.WriteLine("Auth challenge triggered!");
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = ctx =>
-            {
-                Console.WriteLine("Token validated. Claims:");
-                foreach (var claim in ctx.Principal.Claims)
-                    Console.WriteLine($"  {claim.Type} = {claim.Value}");
-                return Task.CompletedTask;
-            }
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)  // reduce during debug to see exact expiration issues
         };
     });
-    
+
+// Program.cs
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        policy => policy.WithOrigins("http://localhost:5173")
+            .AllowCredentials()
+            .AllowAnyMethod()
+            .AllowAnyHeader());
+});
+
 
 // Đăng ký TokenService
 builder.Services.AddScoped<TokenService>();
 
 
-// --- Phần 2: Xây dựng ứng dụng ---
+// --- Xây dựng ứng dụng ---
 var app = builder.Build();
 
-// --- Phần 3: Cấu hình pipeline ---
+app.UseCors("AllowReactApp");
+// --- Cấu hình pipeline ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -117,5 +121,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// --- Phần 4: Chạy ứng dụng ---
+
 app.Run();
